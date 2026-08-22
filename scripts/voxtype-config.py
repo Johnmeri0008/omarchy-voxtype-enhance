@@ -212,9 +212,15 @@ def ensure_model(model_id: str) -> None:
             with urllib.request.urlopen(request, timeout=60) as response, temp.open("wb") as output:
                 downloaded = 0
                 while True:
-                    chunk = response.read(1024 * 1024)
+                    # Read at most one byte beyond the declared size.  This
+                    # keeps a malicious or broken response from consuming
+                    # unbounded disk space before the checksum/size check.
+                    remaining = wanted_size - downloaded
+                    chunk = response.read(min(1024 * 1024, remaining + 1))
                     if not chunk:
                         break
+                    if len(chunk) > remaining:
+                        raise RuntimeError(f"download exceeds declared size for {filename}")
                     output.write(chunk)
                     downloaded += len(chunk)
                     report(completed_size + downloaded, f"Downloading {filename}")

@@ -87,6 +87,31 @@ class VoxtypeConfigTests(unittest.TestCase):
         self.assertEqual(snapshot["engine"], "whisper")
         self.assertEqual(snapshot["model_id"], "")
 
+    def test_model_download_rejects_response_over_declared_size(self) -> None:
+        class OversizedResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, size: int) -> bytes:
+                return b"12345"[:size]
+
+        spec = {
+            "engine": "sensevoice",
+            "model": "test",
+            "directory": "test-model",
+            "source": "https://example.invalid/",
+            "files": [("model.bin", "0000000000000000000000000000000000000000000000000000000000000000", 4)],
+        }
+        with (
+            mock.patch.object(voxtype_config, "SASAYAKI_MODELS", {"test": spec}),
+            mock.patch.object(voxtype_config.urllib.request, "urlopen", return_value=OversizedResponse()),
+            self.assertRaisesRegex(RuntimeError, "exceeds declared size"),
+        ):
+            voxtype_config.ensure_model("test")
+
     def test_main_emits_structured_json_for_runtime_error(self) -> None:
         output = io.StringIO()
         with (
