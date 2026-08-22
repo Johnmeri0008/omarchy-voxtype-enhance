@@ -226,6 +226,34 @@ def enable_onnx() -> None:
     restart_daemon()
 
 
+def ensure_voxtype_binary() -> None:
+    """Install Omarchy's voxtype-bin package when the binary is missing.
+
+    Every mutation below shells out to `voxtype`, so a missing binary would
+    otherwise surface as a confusing FileNotFoundError deep in a download.
+    Route the install through pkexec so the user explicitly authorizes it.
+    """
+    if shutil.which("voxtype") is not None:
+        return
+    missing = [name for name in ("pkexec", "pacman") if shutil.which(name) is None]
+    if missing:
+        raise RuntimeError(
+            "Voxtype is not installed and cannot be installed automatically "
+            f"(missing {', '.join(missing)}); install the voxtype-bin package manually"
+        )
+    result = subprocess.run(
+        ["pkexec", "pacman", "-S", "--noconfirm", "--needed", "voxtype-bin"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(detail or "Voxtype installation was cancelled or failed")
+    if shutil.which("voxtype") is None:
+        raise RuntimeError("voxtype-bin was installed but the binary is still unavailable")
+
+
 def verify_model_selection(selected: dict[str, object]) -> None:
     """Reject false success when the requested engine/model did not persist."""
     actual = config_snapshot()
@@ -308,7 +336,7 @@ def model_files_present(model_id: str) -> bool:
 
 
 def reset_plugin_data() -> None:
-    """Remove only models owned by this plugin and restore its defaults."""
+    ensure_voxtype_binary()
     for spec in SASAYAKI_MODELS.values():
         model_dir = MODELS_DIR / spec["directory"]
         if model_dir.is_dir():
@@ -364,6 +392,7 @@ def config_snapshot() -> dict[str, str | bool]:
 
 
 def set_setting(setting: str, new_value: str) -> None:
+    ensure_voxtype_binary()
     text = read_text()
     current = config_snapshot()
     engine = current["engine"]

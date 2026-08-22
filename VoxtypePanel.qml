@@ -20,6 +20,7 @@ Panel {
     property string statusText: ""
     property bool statusIsError: false
     property bool requiresOnnx: false
+    property string blockedModelId: ""
     property string engine: "sensevoice"
     property string model: "small-int8"
     property string modelId: ""
@@ -107,8 +108,10 @@ Panel {
             if (data.error) {
                 root.statusText = data.error;
                 root.statusIsError = true;
+                if (data.requires_onnx === true && root.pendingAction === "model") {
+                    root.blockedModelId = root.pendingModelId;
+                }
                 root.requiresOnnx = data.requires_onnx === true;
-                return false;
             }
             root.engine = data.engine || "whisper";
             root.model = data.model || "small";
@@ -164,11 +167,19 @@ Panel {
             const output = String(writeStdout.text || "").trim();
             const snapshotOk = output.length > 0 && root.applySnapshot(output);
             const succeeded = exitCode === 0 && snapshotOk;
+            if (succeeded && root.pendingAction === "onnx" && root.blockedModelId !== "") {
+                // Resume the model selection that triggered the ONNX prompt so
+                // the user does not have to pick the model again by hand.
+                const resumeModel = root.blockedModelId;
+                root.blockedModelId = "";
+                root.statusText = "ONNX enabled; resuming model download…";
+                root.statusIsError = false;
+                Qt.callLater(function() { root.setValue("model", resumeModel); });
+                return;
+            }
             if (succeeded) {
                 root.statusText = root.pendingAction === "clear"
                     ? "Defaults restored; select a model to download."
-                    : root.pendingAction === "onnx"
-                        ? "ONNX enabled. Select an ONNX model to download it."
                     : "Voxtype restarted with the new setting";
                 root.statusIsError = false;
             } else if (snapshotOk || output.length === 0) {

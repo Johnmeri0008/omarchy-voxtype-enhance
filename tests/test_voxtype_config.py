@@ -124,6 +124,43 @@ class VoxtypeConfigTests(unittest.TestCase):
         ):
             voxtype_config.ensure_model("test")
 
+    def test_ensure_voxtype_binary_skips_install_when_present(self) -> None:
+        with (
+            mock.patch.object(voxtype_config.shutil, "which", return_value="/usr/bin/voxtype"),
+            mock.patch.object(voxtype_config.subprocess, "run") as run,
+        ):
+            voxtype_config.ensure_voxtype_binary()
+        run.assert_not_called()
+
+    def test_ensure_voxtype_binary_installs_via_pkexec_when_missing(self) -> None:
+        installed = subprocess.CompletedProcess([], 0)
+        with (
+            mock.patch.object(
+                voxtype_config.shutil,
+                "which",
+                side_effect=[None, "/usr/bin/pkexec", "/usr/bin/pacman", "/usr/bin/voxtype"],
+            ),
+            mock.patch.object(voxtype_config.subprocess, "run", return_value=installed) as run,
+        ):
+            voxtype_config.ensure_voxtype_binary()
+        self.assertEqual(
+            run.call_args.args[0],
+            ["pkexec", "pacman", "-S", "--noconfirm", "--needed", "voxtype-bin"],
+        )
+
+    def test_ensure_voxtype_binary_surfaces_cancelled_install(self) -> None:
+        cancelled = subprocess.CompletedProcess([], 1, stdout="", stderr="Dismissed")
+        with (
+            mock.patch.object(
+                voxtype_config.shutil,
+                "which",
+                side_effect=[None, "/usr/bin/pkexec", "/usr/bin/pacman"],
+            ),
+            mock.patch.object(voxtype_config.subprocess, "run", return_value=cancelled),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Dismissed"):
+                voxtype_config.ensure_voxtype_binary()
+
     def test_main_emits_structured_json_for_runtime_error(self) -> None:
         output = io.StringIO()
         with (
