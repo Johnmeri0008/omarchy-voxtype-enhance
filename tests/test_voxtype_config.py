@@ -42,8 +42,20 @@ class VoxtypeConfigTests(unittest.TestCase):
             args=[], returncode=1, stdout="", stderr="engine 'sensevoice' is not compiled into this binary"
         )
         with mock.patch.object(voxtype_config.subprocess, "run", return_value=rejected):
-            with self.assertRaisesRegex(RuntimeError, "not compiled into this binary"):
+            # 7e41fe8 translates the raw gate rejection into an actionable
+            # message so the panel can offer the explicit ONNX setup action.
+            with self.assertRaisesRegex(
+                voxtype_config.EngineUnavailable, "standard Whisper binary"
+            ):
                 voxtype_config.set_engine("sensevoice")
+
+    def test_set_engine_passes_through_unrelated_rejection(self) -> None:
+        rejected = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="unknown config key"
+        )
+        with mock.patch.object(voxtype_config.subprocess, "run", return_value=rejected):
+            with self.assertRaisesRegex(RuntimeError, "unknown config key"):
+                voxtype_config.set_engine("whisper")
 
     def test_restart_daemon_surfaces_systemd_error(self) -> None:
         rejected = subprocess.CompletedProcess(
