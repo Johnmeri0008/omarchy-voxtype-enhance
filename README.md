@@ -75,6 +75,8 @@ Voxtype writes the complete transcription to the Wayland clipboard. The plugin t
 
 This avoids terminal applications interpreting `Ctrl+V` as a special action, such as an image-paste command. The final shortcut is sent through Hyprland's `hl.dsp.send_key_state` dispatcher with explicit key press and release events.
 
+Before output, the plugin records the previous clipboard hash. It sends the shortcut only when Voxtype has produced new non-empty text, so pressing the recording key without speaking does not paste stale clipboard content.
+
 ### Type
 
 Voxtype's native simulated keyboard-input mode. This can be useful in applications where direct typing is preferred, but mixed-language text may interact with Fcitx5/Rime character by character.

@@ -4,9 +4,51 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import pathlib
 import subprocess
+import sys
 import time
+
+STATE_DIR = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "voxtype-enhance"
+CLIPBOARD_MARKER = STATE_DIR / "clipboard-before.sha256"
+
+
+def clipboard_text() -> bytes | None:
+    try:
+        result = subprocess.run(
+            ["wl-paste", "--no-newline", "--type", "text/plain"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0 or not result.stdout:
+        return None
+    return result.stdout
+
+
+def snapshot_clipboard() -> None:
+    content = clipboard_text()
+    STATE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    marker = "none" if content is None else hashlib.sha256(content).hexdigest()
+    CLIPBOARD_MARKER.write_text(marker, encoding="ascii")
+
+
+def clipboard_changed() -> bool:
+    try:
+        before = CLIPBOARD_MARKER.read_text(encoding="ascii").strip()
+    except OSError:
+        return False
+    content = clipboard_text()
+    after = "none" if content is None else hashlib.sha256(content).hexdigest()
+    try:
+        CLIPBOARD_MARKER.unlink()
+    except FileNotFoundError:
+        pass
+    return content is not None and before != after
 
 
 def hyprland_environment() -> dict[str, str]:
@@ -57,6 +99,12 @@ def send_shortcut(mods: str, key: str, state: str) -> None:
 
 
 def main() -> None:
+    action = sys.argv[1] if len(sys.argv) > 1 else "paste"
+    if action == "snapshot":
+        snapshot_clipboard()
+        return
+    if action != "paste" or not clipboard_changed():
+        return
     # This is the same policy as Omarchy's default clipboard.lua:
     # terminals use Shift+Insert; other surfaces use Ctrl+V.
     mods, key = ("SHIFT", "Insert") if active_window_is_terminal() else ("CTRL", "V")

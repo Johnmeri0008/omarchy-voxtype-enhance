@@ -52,6 +52,8 @@ SASAYAKI_MODELS = {
 
 MODELS_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "voxtype" / "models"
 UNIVERSAL_PASTE = Path(__file__).with_name("omarchy-universal-paste.py")
+UNIVERSAL_SNAPSHOT = f"{UNIVERSAL_PASTE} snapshot"
+UNIVERSAL_PASTE_COMMAND = f"{UNIVERSAL_PASTE} paste"
 
 
 def read_text() -> str:
@@ -247,7 +249,8 @@ def reset_plugin_data() -> None:
     text = set_value(text, "sensevoice", "model", "small-int8")
     text = set_value(text, "sensevoice", "language", "zh")
     text = set_value(text, "output", "mode", "clipboard")
-    text = set_value(text, "output", "post_output_command", str(UNIVERSAL_PASTE))
+    text = set_value(text, "output", "pre_output_command", UNIVERSAL_SNAPSHOT)
+    text = set_value(text, "output", "post_output_command", UNIVERSAL_PASTE_COMMAND)
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     CONFIG.write_text(text, encoding="utf-8")
     # Do not restart here: the default model was intentionally removed and
@@ -275,7 +278,7 @@ def config_snapshot() -> dict[str, str | bool]:
     )
     output_mode = value(text, "output", "mode", "type")
     post_output = value(text, "output", "post_output_command", "")
-    if output_mode == "clipboard" and post_output == str(UNIVERSAL_PASTE):
+    if output_mode == "clipboard" and post_output == UNIVERSAL_PASTE_COMMAND:
         output_mode = "universal"
     return {
         "engine": engine.lower(),
@@ -329,10 +332,13 @@ def set_setting(setting: str, new_value: str) -> None:
     elif setting == "mode":
         if new_value == "universal":
             text = set_value(text, "output", "mode", "clipboard")
-            text = set_value(text, "output", "post_output_command", str(UNIVERSAL_PASTE))
+            text = set_value(text, "output", "pre_output_command", UNIVERSAL_SNAPSHOT)
+            text = set_value(text, "output", "post_output_command", UNIVERSAL_PASTE_COMMAND)
         else:
             text = set_value(text, "output", "mode", new_value)
-            if value(text, "output", "post_output_command", "") == str(UNIVERSAL_PASTE):
+            if value(text, "output", "pre_output_command", "") == UNIVERSAL_SNAPSHOT:
+                text = remove_value(text, "output", "pre_output_command")
+            if value(text, "output", "post_output_command", "") == UNIVERSAL_PASTE_COMMAND:
                 text = remove_value(text, "output", "post_output_command")
     elif setting == "paste_keys":
         text = set_value(text, "output", "paste_keys", new_value)
