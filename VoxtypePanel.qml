@@ -19,6 +19,7 @@ Panel {
     property string pendingModelId: ""
     property string statusText: ""
     property bool statusIsError: false
+    property bool requiresOnnx: false
     property string engine: "sensevoice"
     property string model: "small-int8"
     property string modelId: ""
@@ -55,6 +56,19 @@ Panel {
         root.downloadProgress = setting === "model" ? 0 : -1;
         root.statusText = setting === "model" ? "Downloading and verifying model…" : "Applying…";
         root.statusIsError = false;
+        root.requiresOnnx = false;
+        writeProcess.running = true;
+    }
+    function enableOnnx() {
+        if (writeProcess.running) return;
+        writeProcess.command = ["python3", root.configTool, "enable-onnx"];
+        root.loading = true;
+        root.pendingAction = "onnx";
+        root.pendingModelId = "";
+        root.downloadProgress = -1;
+        root.statusText = "Administrator approval is required to enable ONNX…";
+        root.statusIsError = false;
+        root.requiresOnnx = false;
         writeProcess.running = true;
     }
     function updateDownloadProgress(raw) {
@@ -84,6 +98,7 @@ Panel {
         root.downloadProgress = -1;
         root.statusText = "Clearing models and restoring defaults…";
         root.statusIsError = false;
+        root.requiresOnnx = false;
         writeProcess.running = true;
     }
     function applySnapshot(raw) {
@@ -92,6 +107,7 @@ Panel {
             if (data.error) {
                 root.statusText = data.error;
                 root.statusIsError = true;
+                root.requiresOnnx = data.requires_onnx === true;
                 return false;
             }
             root.engine = data.engine || "whisper";
@@ -101,6 +117,7 @@ Panel {
             root.language = data.language || "auto";
             root.outputMode = data.mode || "type";
             root.pasteKeys = data.paste_keys || "ctrl+v";
+            root.requiresOnnx = false;
             return true;
         } catch (error) {
             root.statusText = "Could not read Voxtype configuration";
@@ -150,6 +167,8 @@ Panel {
             if (succeeded) {
                 root.statusText = root.pendingAction === "clear"
                     ? "Defaults restored; select a model to download."
+                    : root.pendingAction === "onnx"
+                        ? "ONNX enabled. Select an ONNX model to download it."
                     : "Voxtype restarted with the new setting";
                 root.statusIsError = false;
             } else if (snapshotOk || output.length === 0) {
@@ -306,6 +325,20 @@ Panel {
                     color: root.statusIsError ? Color.urgent : (root.statusText.length > 0 ? Color.accent : Color.muted)
                     wrapMode: Text.WordWrap; width: parent.width
                     font.pixelSize: Style.font.caption
+                }
+
+                Text {
+                    visible: root.requiresOnnx && !root.loading
+                    text: "Enable ONNX support (administrator approval)"
+                    color: Color.accent
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                    font.pixelSize: Style.font.caption
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.enableOnnx()
+                    }
                 }
 
                 Text {

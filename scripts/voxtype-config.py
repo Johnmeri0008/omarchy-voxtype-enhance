@@ -54,6 +54,11 @@ MODELS_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "shar
 UNIVERSAL_PASTE = Path(__file__).with_name("omarchy-universal-paste.py")
 UNIVERSAL_SNAPSHOT = f"{UNIVERSAL_PASTE} snapshot"
 UNIVERSAL_PASTE_COMMAND = f"{UNIVERSAL_PASTE} paste"
+ONNX_ENGINES = {"parakeet", "moonshine", "sensevoice", "paraformer", "dolphin", "omnilingual", "cohere"}
+
+
+class EngineUnavailable(RuntimeError):
+    """The selected engine needs an ONNX Voxtype binary."""
 
 
 def read_text() -> str:
@@ -158,7 +163,67 @@ def set_engine(engine: str) -> None:
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
+        if engine.lower() in ONNX_ENGINES and "not compiled" in detail.lower():
+            raise EngineUnavailable(
+                f"Voxtype is using the standard Whisper binary. Enable ONNX support before selecting {engine}."
+            )
         raise RuntimeError(detail or f"Voxtype rejected the {engine} engine")
+
+
+def check_engine_feature(engine: str) -> None:
+    """Avoid downloading a model when the active binary cannot run it.
+
+    Recent Voxtype builds expose their compiled engines through `info
+    variants`.  Older builds may not, so an unavailable/unknown probe is
+    deliberately treated as inconclusive and the authoritative config
+    mutator remains the final check.
+    """
+    result = subprocess.run(
+        ["voxtype", "info", "variants"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return
+
+    features_line = next(
+        (line.strip() for line in result.stdout.splitlines()
+         if line.strip().lower().startswith("features:")),
+        None,
+    )
+    if features_line is None:
+        return
+
+    features = {
+        feature.strip().lower()
+        for feature in features_line.split(":", 1)[1].split(",")
+        if feature.strip()
+    }
+    normalized = engine.lower()
+    if normalized in features:
+        return
+    raise EngineUnavailable(
+        f"engine '{normalized}' is not compiled into this binary. "
+        "The selected model was not downloaded. Enable the ONNX Voxtype "
+        "variant and select the model again."
+    )
+
+
+def enable_onnx() -> None:
+    """Switch Voxtype's system binary after an explicit user request."""
+    if shutil.which("pkexec") is None:
+        raise RuntimeError("pkexec is required to enable the ONNX Voxtype variant")
+    result = subprocess.run(
+        ["pkexec", "voxtype", "setup", "onnx", "--enable"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(detail or "ONNX setup was cancelled or failed")
+    restart_daemon()
 
 
 def verify_model_selection(selected: dict[str, object]) -> None:
@@ -310,6 +375,7 @@ def set_setting(setting: str, new_value: str) -> None:
 
         # Download and verify before changing the active engine.  This leaves
         # the current Voxtype configuration usable if a download fails.
+        check_engine_feature(str(selected["engine"]))
         ensure_model(new_value)
 
         # The user-facing model ID carries both pieces of information.  Keep
@@ -357,7 +423,7 @@ def set_setting(setting: str, new_value: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["get", "set", "clear"])
+    parser.add_argument("action", choices=["get", "set", "clear", "enable-onnx"])
     parser.add_argument("setting", nargs="?")
     parser.add_argument("value", nargs="?")
     args = parser.parse_args()
@@ -369,10 +435,18 @@ def main() -> None:
             reset_plugin_data()
             print(json.dumps(config_snapshot(), ensure_ascii=False))
             return
+        if args.action == "enable-onnx":
+            enable_onnx()
+            print(json.dumps(config_snapshot(), ensure_ascii=False))
+            return
         if not args.setting or args.value is None:
             raise SystemExit("set requires SETTING VALUE")
-        set_setting(args.setting, args.value)
+        if args.action == "set":
+            set_setting(args.setting, args.value)
         print(json.dumps(config_snapshot(), ensure_ascii=False))
+    except EngineUnavailable as error:
+        print(json.dumps({"error": str(error), "requires_onnx": True}, ensure_ascii=False))
+        raise SystemExit(1) from error
     except Exception as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False))
         raise SystemExit(1) from error

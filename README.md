@@ -52,9 +52,13 @@ shows the Voxtype/systemd error and restores the effective selection. Downloads
 use the pinned Sasayaki Hugging Face sources and SHA-256 manifests. Already
 verified files are skipped.
 
-SenseVoice and Paraformer require an ONNX-capable Voxtype binary. If Voxtype
-rejects one of those engines because the active binary lacks ONNX support, the
-panel reports that error instead of presenting the model switch as successful.
+SenseVoice and Paraformer require an ONNX-capable Voxtype binary. The default
+Voxtype installation uses the standard Whisper binary. When an ONNX model is
+selected without ONNX support, the plugin stops before downloading and shows an
+explicit `Enable ONNX support (administrator approval)` action. Only clicking
+that action runs the fixed command `pkexec voxtype setup onnx --enable`; after
+approval, select the model again to download and activate it. Cancelling the
+authentication leaves the existing Whisper setup unchanged.
 
 Models are stored under:
 
@@ -87,7 +91,10 @@ The panel updates `~/.config/voxtype/config.toml` only after the user selects a 
 
 The `Clear plugin data` link removes only the three model directories managed by this plugin and restores SenseVoice int8, Chinese, and Omarchy universal paste. It does not remove Whisper models, recordings, hotkeys, or unrelated Voxtype data. After clearing, choose a model to download it again.
 
-The plugin does not edit Hyprland bindings, change the recording hotkey, install a system service, or require elevated privileges.
+The plugin does not edit Hyprland bindings, change the recording hotkey, or
+install a system service. Model selection does not require privileges. The
+optional ONNX action is the only elevated operation, is visible and
+user-initiated, and runs a fixed command through `pkexec`.
 
 ## Dependencies
 
