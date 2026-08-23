@@ -31,12 +31,15 @@
 | 1 | 模型下载读到 EOF 才校验大小/哈希，超大响应可耗尽磁盘 | `94b7dd9`：最多多读 1 字节，超限立即失败 + 回归测试 |
 | 2（主动加固） | — | `7e41fe8`：下载前检测 ONNX 引擎可用性；ONNX 启用走用户显式触发的固定命令 `pkexec voxtype setup onnx --enable` |
 
-HEAD 即 `7e41fe8`，待维护者复核。
+HEAD 即 `6bf0803`。`6bf0803` 新增第二处提权：voxtype 二进制缺失时，变更类入口先经
+固定命令 `pkexec pacman -S --noconfirm --needed voxtype-bin` 提供安装（取消即不动，
+只读查询不触发）。README 已改为「两处提权、均为固定命令」，并在 #1428 补披露评论。
 
 ## 四、本仓库对照自查要点（侦察发现，复审重点）
 
 - [x] 模型下载：pinned HuggingFace URL + SHA-256/大小双校验 + 尺寸上限（判例修复已落地）
-- [x] 特权面仅一处固定命令 `pkexec voxtype setup onnx --enable`，用户显式触发
+- [x] 特权面两处固定命令（`pkexec voxtype setup onnx --enable`；
+      `pkexec pacman -S --noconfirm --needed voxtype-bin`），均用户显式触发、列表传参
 - [x] 外部命令全部列表参数，无 shell 拼接；engine 切换委托 voxtype CLI 并回读验证
 - [x] tests/ 7 个用例可跑（修复评论里引用过，是加分项，保持绿色）
 - [ ] **卸载卫生**：universal paste 模式把 `pre/post_output_command`（指向本插件脚本的

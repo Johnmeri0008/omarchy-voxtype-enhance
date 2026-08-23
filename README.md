@@ -60,6 +60,13 @@ that action runs the fixed command `pkexec voxtype setup onnx --enable`; after
 approval, select the model again to download and activate it. Cancelling the
 authentication leaves the existing Whisper setup unchanged.
 
+If Voxtype itself is missing (for example when only the plugin was installed),
+any panel action that changes settings first offers to install Omarchy's
+`voxtype-bin` package through the fixed command
+`pkexec pacman -S --noconfirm --needed voxtype-bin`. Cancelling the
+authentication prompt leaves the system unchanged; read-only status queries
+never trigger an installation.
+
 Models are stored under:
 
 ```text
@@ -92,9 +99,13 @@ The panel updates `~/.config/voxtype/config.toml` only after the user selects a 
 The `Clear plugin data` link removes only the three model directories managed by this plugin and restores SenseVoice int8, Chinese, and Omarchy universal paste. It does not remove Whisper models, recordings, hotkeys, or unrelated Voxtype data. After clearing, choose a model to download it again.
 
 The plugin does not edit Hyprland bindings, change the recording hotkey, or
-install a system service. Model selection does not require privileges. The
-optional ONNX action is the only elevated operation, is visible and
-user-initiated, and runs a fixed command through `pkexec`.
+install a system service. When Voxtype is already installed, model selection
+does not require privileges. Exactly two operations elevate through `pkexec`;
+both are visible, user-initiated, and run fixed commands:
+
+- `pkexec voxtype setup onnx --enable` — switch to the ONNX-capable binary;
+- `pkexec pacman -S --noconfirm --needed voxtype-bin` — offered only when the
+  Voxtype binary is missing entirely.
 
 ## Dependencies
 
