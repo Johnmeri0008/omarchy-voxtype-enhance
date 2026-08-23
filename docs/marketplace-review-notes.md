@@ -30,10 +30,11 @@
 |------|----------|------|
 | 1 | 模型下载读到 EOF 才校验大小/哈希，超大响应可耗尽磁盘 | `94b7dd9`：最多多读 1 字节，超限立即失败 + 回归测试 |
 | 2（主动加固） | — | `7e41fe8`：下载前检测 ONNX 引擎可用性；ONNX 启用走用户显式触发的固定命令 `pkexec voxtype setup onnx --enable` |
+| 3 | universal paste 三连：① `stdout=PIPE` 全量吞剪贴板才哈希（无界内存）；② 状态目录回退可预测的 `/tmp/voxtype-enhance`；③ marker 裸 follow 不验属主/类型 | 本轮修复：流式分块哈希 + 8 MiB 封顶；去掉 `/tmp` 回退，强制 `XDG_RUNTIME_DIR` 且目录验属主/0700；marker 读写 `O_NOFOLLOW`+fstat 验 regular/属主、0600。回归测试 `tests/test_universal_paste.py` |
 
-HEAD 即 `6bf0803`。`6bf0803` 新增第二处提权：voxtype 二进制缺失时，变更类入口先经
-固定命令 `pkexec pacman -S --noconfirm --needed voxtype-bin` 提供安装（取消即不动，
-只读查询不触发）。README 已改为「两处提权、均为固定命令」，并在 #1428 补披露评论。
+HEAD 即本轮修复提交（`6bf0803` 之后）。`6bf0803` 新增第二处提权：voxtype 二进制缺失时，
+变更类入口先经固定命令 `pkexec pacman -S --noconfirm --needed voxtype-bin` 提供安装
+（取消即不动，只读查询不触发），已在 #1428 披露。
 
 ## 四、本仓库对照自查要点（侦察发现，复审重点）
 

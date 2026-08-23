@@ -8,47 +8,111 @@ import hashlib
 import os
 import pathlib
 import subprocess
+import stat
 import sys
 import time
 
-STATE_DIR = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "voxtype-enhance"
-CLIPBOARD_MARKER = STATE_DIR / "clipboard-before.sha256"
+MAX_CLIPBOARD_BYTES = 8 * 1024 * 1024
+CHUNK_BYTES = 64 * 1024
 
 
-def clipboard_text() -> bytes | None:
+def state_marker_path() -> pathlib.Path:
+    """Marker path inside a private per-user runtime directory.
+
+    The /tmp fallback is intentionally gone: a predictable shared directory
+    would let any local user pre-place or swap the marker file.
+    """
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime_dir:
+        raise RuntimeError(
+            "XDG_RUNTIME_DIR is not set; refusing to store clipboard state "
+            "in a world-readable location"
+        )
+    directory = pathlib.Path(runtime_dir) / "voxtype-enhance"
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = directory.lstat()
+    if info.st_uid != os.geteuid() or not stat.S_ISDIR(info.st_mode):
+        raise RuntimeError("voxtype-enhance state directory is not a private directory")
+    os.chmod(directory, 0o700)
+    return directory / "clipboard-before.sha256"
+
+
+def write_marker(path: pathlib.Path, marker: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+        handle.write(marker)
+
+
+def read_marker(path: pathlib.Path) -> str | None:
+    """Read the marker only when it is a regular file owned by this user."""
     try:
-        result = subprocess.run(
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    with os.fdopen(descriptor, "r", encoding="ascii") as handle:
+        info = os.fstat(handle.fileno())
+        if info.st_uid != os.geteuid() or not stat.S_ISREG(info.st_mode):
+            return None
+        return handle.read(128).strip()
+
+
+def clipboard_digest() -> str | None:
+    """Hash clipboard text by streaming it in bounded chunks.
+
+    Never holds more than one chunk in memory, and stops reading at
+    MAX_CLIPBOARD_BYTES so a hostile endless source cannot pin the shell;
+    the digest is flagged as truncated instead.
+    """
+    try:
+        process = subprocess.Popen(
             ["wl-paste", "--no-newline", "--type", "text/plain"],
-            check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
     except OSError:
         return None
-    if result.returncode != 0 or not result.stdout:
+    hasher = hashlib.sha256()
+    total = 0
+    truncated = False
+    stream = process.stdout
+    try:
+        while stream is not None:
+            chunk = stream.read(CHUNK_BYTES)
+            if not chunk:
+                break
+            hasher.update(chunk)
+            total += len(chunk)
+            if total >= MAX_CLIPBOARD_BYTES:
+                truncated = True
+                break
+    finally:
+        if truncated:
+            process.kill()
+        process.wait()
+    if total == 0 or (process.returncode != 0 and not truncated):
         return None
-    return result.stdout
+    digest = hasher.hexdigest()
+    return f"truncated:{digest}" if truncated else digest
 
 
 def snapshot_clipboard() -> None:
-    content = clipboard_text()
-    STATE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    marker = "none" if content is None else hashlib.sha256(content).hexdigest()
-    CLIPBOARD_MARKER.write_text(marker, encoding="ascii")
+    marker_path = state_marker_path()
+    digest = clipboard_digest()
+    write_marker(marker_path, "none" if digest is None else digest)
 
 
 def clipboard_changed() -> bool:
-    try:
-        before = CLIPBOARD_MARKER.read_text(encoding="ascii").strip()
-    except OSError:
+    marker_path = state_marker_path()
+    before = read_marker(marker_path)
+    if not before:
         return False
-    content = clipboard_text()
-    after = "none" if content is None else hashlib.sha256(content).hexdigest()
+    digest = clipboard_digest()
     try:
-        CLIPBOARD_MARKER.unlink()
+        marker_path.unlink()
     except FileNotFoundError:
         pass
-    return content is not None and before != after
+    return digest is not None and before != digest
 
 
 def hyprland_environment() -> dict[str, str]:
