@@ -105,13 +105,13 @@ Panel {
     function applySnapshot(raw) {
         try {
             const data = JSON.parse(raw);
+            const requiresOnnx = data.requires_onnx === true;
             if (data.error) {
                 root.statusText = data.error;
                 root.statusIsError = true;
-                if (data.requires_onnx === true && root.pendingAction === "model") {
+                if (requiresOnnx && root.pendingAction === "model") {
                     root.blockedModelId = root.pendingModelId;
                 }
-                root.requiresOnnx = data.requires_onnx === true;
             }
             root.engine = data.engine || "whisper";
             root.model = data.model || "small";
@@ -120,7 +120,10 @@ Panel {
             root.language = data.language || "auto";
             root.outputMode = data.mode || "type";
             root.pasteKeys = data.paste_keys || "ctrl+v";
-            root.requiresOnnx = false;
+            // Keep the ONNX action visible when the bridge reports a feature
+            // gate. This used to be overwritten unconditionally below, so
+            // the panel only showed the vague "Could not apply..." error.
+            root.requiresOnnx = requiresOnnx;
             return true;
         } catch (error) {
             root.statusText = "Could not read Voxtype configuration";
