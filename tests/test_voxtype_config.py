@@ -86,8 +86,7 @@ class VoxtypeConfigTests(unittest.TestCase):
     def test_arm_does_not_use_packaged_binary_switch(self) -> None:
         with mock.patch.object(voxtype_config.platform, "machine", return_value="aarch64"):
             self.assertFalse(voxtype_config.automatic_onnx_setup_supported())
-            with self.assertRaisesRegex(RuntimeError, "ARM package"):
-                voxtype_config.enable_onnx()
+            self.assertTrue(voxtype_config.onnx_install_supported())
 
     def test_restart_daemon_surfaces_systemd_error(self) -> None:
         rejected = subprocess.CompletedProcess(

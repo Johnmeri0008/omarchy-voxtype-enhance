@@ -32,7 +32,11 @@
 | 2（主动加固） | — | `7e41fe8`：下载前检测 ONNX 引擎可用性；ONNX 启用走用户显式触发的固定命令 `pkexec voxtype setup onnx --enable` |
 | 3 | universal paste 三连：① `stdout=PIPE` 全量吞剪贴板才哈希（无界内存）；② 状态目录回退可预测的 `/tmp/voxtype-enhance`；③ marker 裸 follow 不验属主/类型 | 本轮修复：流式分块哈希 + 8 MiB 封顶；去掉 `/tmp` 回退，强制 `XDG_RUNTIME_DIR` 且目录验属主/0700；marker 读写 `O_NOFOLLOW`+fstat 验 regular/属主、0600。回归测试 `tests/test_universal_paste.py` |
 
-HEAD 即本轮修复提交（`6bf0803` 之后）。`6bf0803` 新增第二处提权：voxtype 二进制缺失时，
+HEAD 即本轮修复提交（`6b2cffd` 之后）。本轮增加 ARM/aarch64 平台分支：插件先检测实际可用的
+Voxtype 变体，缺少 ONNX 时不下载模型；x86_64 仍使用固定的 `pkexec voxtype setup onnx --enable`，
+ARM 则只有用户明确确认后才下载并校验固定版本的官方 `voxtype-0.7.5-linux-aarch64-onnx`，
+安装到 `/usr/local/bin/voxtype`，并创建当前用户的 systemd override，不覆盖包管理器拥有的
+`/usr/bin/voxtype`。`6bf0803` 新增第二处提权：voxtype 二进制缺失时，
 变更类入口先经固定命令 `pkexec pacman -S --noconfirm --needed voxtype-bin` 提供安装
 （取消即不动，只读查询不触发），已在 #1428 披露。
 
@@ -42,6 +46,8 @@ HEAD 即本轮修复提交（`6bf0803` 之后）。`6bf0803` 新增第二处提�
 - [x] 特权面两处固定命令（`pkexec voxtype setup onnx --enable`；
       `pkexec pacman -S --noconfirm --needed voxtype-bin`），均用户显式触发、列表传参
 - [x] 外部命令全部列表参数，无 shell 拼接；engine 切换委托 voxtype CLI 并回读验证
+- [x] ARM ONNX 下载使用固定官方 URL、大小上限和 SHA-256 校验；授权前不写系统路径
+- [x] ARM 安装不覆盖 `/usr/bin/voxtype`，仅使用 `/usr/local/bin` 与用户级 service override
 - [x] tests/ 7 个用例可跑（修复评论里引用过，是加分项，保持绿色）
 - [ ] **卸载卫生**：universal paste 模式把 `pre/post_output_command`（指向本插件脚本的
       绝对路径）写进用户 `~/.config/voxtype/config.toml`，插件移除后钩子残留、指向已删除路径。

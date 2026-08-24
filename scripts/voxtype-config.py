@@ -56,6 +56,11 @@ UNIVERSAL_PASTE = Path(__file__).with_name("omarchy-universal-paste.py")
 UNIVERSAL_SNAPSHOT = f"{UNIVERSAL_PASTE} snapshot"
 UNIVERSAL_PASTE_COMMAND = f"{UNIVERSAL_PASTE} paste"
 ONNX_ENGINES = {"parakeet", "moonshine", "sensevoice", "paraformer", "dolphin", "omnilingual", "cohere"}
+ARM_ONNX_URL = "https://github.com/peteonrails/voxtype/releases/download/v0.7.5/voxtype-0.7.5-linux-aarch64-onnx"
+ARM_ONNX_SHA256 = "360cc6e2ccbce7ea0d7c7cf92f23ebada7a6678f0e92ddaecbea44966d757b63"
+ARM_ONNX_MAX_SIZE = 50_000_000
+ARM_ONNX_INSTALL = Path("/usr/local/bin/voxtype")
+ARM_ONNX_SERVICE_OVERRIDE = Path.home() / ".config/systemd/user/voxtype.service.d/10-arm-onnx.conf"
 
 
 class EngineUnavailable(RuntimeError):
@@ -65,6 +70,11 @@ class EngineUnavailable(RuntimeError):
 def automatic_onnx_setup_supported() -> bool:
     """Whether the distro's `voxtype setup` can switch the packaged binary."""
     return platform.machine().lower() not in {"aarch64", "arm64"}
+
+
+def onnx_install_supported() -> bool:
+    """Whether this plugin has a verified, platform-specific install path."""
+    return automatic_onnx_setup_supported() or platform.machine().lower() in {"aarch64", "arm64"}
 
 
 def read_text() -> str:
@@ -239,10 +249,8 @@ def check_engine_feature(engine: str) -> None:
 def enable_onnx() -> None:
     """Switch Voxtype's system binary after an explicit user request."""
     if not automatic_onnx_setup_supported():
-        raise RuntimeError(
-            "Automatic ONNX switching is not supported by the ARM package. "
-            "Install an ARM ONNX Voxtype variant first, then select the model again."
-        )
+        install_arm_onnx()
+        return
     if shutil.which("pkexec") is None:
         raise RuntimeError("pkexec is required to enable the ONNX Voxtype variant")
     result = subprocess.run(
@@ -254,6 +262,61 @@ def enable_onnx() -> None:
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(detail or "ONNX setup was cancelled or failed")
+    restart_daemon()
+
+
+def install_arm_onnx() -> None:
+    """Install the pinned upstream ARM ONNX binary after pkexec consent.
+
+    The distro package owns /usr/bin/voxtype and its service uses that path.
+    Keep the package intact: install the verified upstream ARM binary in
+    /usr/local and add a user-service override pointing only this user's
+    Voxtype daemon at it.
+    """
+    if platform.machine().lower() not in {"aarch64", "arm64"}:
+        raise RuntimeError("The ARM ONNX installer was requested on a non-ARM machine")
+    target = ARM_ONNX_INSTALL
+    if not target.is_file() or sha256_file(target) != ARM_ONNX_SHA256:
+        fd, temp_name = tempfile.mkstemp(prefix="voxtype-arm-onnx.", suffix=".part")
+        os.close(fd)
+        temp = Path(temp_name)
+        try:
+            request = urllib.request.Request(ARM_ONNX_URL, headers={"User-Agent": "omarchy-voxtype-enhance/0.1"})
+            with urllib.request.urlopen(request, timeout=120) as response, temp.open("wb") as output:
+                downloaded = 0
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    downloaded += len(chunk)
+                    if downloaded > ARM_ONNX_MAX_SIZE:
+                        raise RuntimeError("ARM ONNX binary exceeds its declared size")
+                    output.write(chunk)
+            if sha256_file(temp) != ARM_ONNX_SHA256:
+                raise RuntimeError("ARM ONNX binary checksum mismatch")
+            if shutil.which("pkexec") is None:
+                raise RuntimeError("pkexec is required to install the ARM ONNX Voxtype binary")
+            result = subprocess.run(
+                ["pkexec", "install", "-m", "0755", str(temp), str(target)],
+                check=False, capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                detail = result.stderr.strip() or result.stdout.strip()
+                raise RuntimeError(detail or "ARM ONNX installation was cancelled")
+        finally:
+            temp.unlink(missing_ok=True)
+
+    ARM_ONNX_SERVICE_OVERRIDE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    ARM_ONNX_SERVICE_OVERRIDE.write_text(
+        "[Service]\nExecStart=\nExecStart=/usr/local/bin/voxtype daemon\n",
+        encoding="utf-8",
+    )
+    daemon_reload = subprocess.run(
+        ["systemctl", "--user", "daemon-reload"], check=False, capture_output=True, text=True
+    )
+    if daemon_reload.returncode != 0:
+        detail = daemon_reload.stderr.strip() or daemon_reload.stdout.strip()
+        raise RuntimeError(detail or "Could not reload the Voxtype user service")
     restart_daemon()
 
 
@@ -508,7 +571,7 @@ def main() -> None:
         print(json.dumps({
             "error": str(error),
             "requires_onnx": True,
-            "onnx_setup_supported": automatic_onnx_setup_supported(),
+            "onnx_setup_supported": onnx_install_supported(),
         }, ensure_ascii=False))
         raise SystemExit(1) from error
     except Exception as error:

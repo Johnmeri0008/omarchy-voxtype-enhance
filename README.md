@@ -54,11 +54,14 @@ verified files are skipped.
 
 SenseVoice and Paraformer require an ONNX-capable Voxtype binary. The default
 Voxtype installation uses the standard Whisper binary. When an ONNX model is
-selected without ONNX support, the plugin stops before downloading and shows an
-explicit `Enable ONNX support (administrator approval)` action. Only clicking
-that action runs the fixed command `pkexec voxtype setup onnx --enable`; after
-approval, select the model again to download and activate it. Cancelling the
-authentication leaves the existing Whisper setup unchanged.
+selected without ONNX support, the plugin stops before downloading and explains
+what is missing. On x86_64, the user can explicitly approve the fixed command
+`pkexec voxtype setup onnx --enable`. On aarch64/ARM, the plugin instead offers
+to download and SHA-256 verify Voxtype's pinned official ARM ONNX release, then
+installs it under `/usr/local/bin` and uses a per-user systemd override; it does
+not replace the package-owned `/usr/bin/voxtype`. Only after the user approves
+the privileged install does the model download resume. Cancelling leaves the
+existing setup unchanged.
 
 If Voxtype itself is missing (for example when only the plugin was installed),
 any panel action that changes settings first offers to install Omarchy's
@@ -104,6 +107,8 @@ does not require privileges. Exactly two operations elevate through `pkexec`;
 both are visible, user-initiated, and run fixed commands:
 
 - `pkexec voxtype setup onnx --enable` — switch to the ONNX-capable binary;
+- the pinned official ARM ONNX binary — offered only after explicit approval
+  on aarch64/ARM, installed outside the package manager and verified by SHA-256;
 - `pkexec pacman -S --noconfirm --needed voxtype-bin` — offered only when the
   Voxtype binary is missing entirely.
 
