@@ -1,5 +1,10 @@
 # Voxtype Enhance
 
+## 0.1.1
+
+- Adapted model, language, output, status, and border colors to Omarchy popup
+  theme tokens for readable contrast across themes.
+
 Voxtype Enhance is an Omarchy experience-enhancement plugin for Voxtype voice input. It adds a native top-bar microphone control and a compact settings panel for speech models, language, and output behavior.
 
 ## Screenshot

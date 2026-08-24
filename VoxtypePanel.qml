@@ -30,6 +30,9 @@ Panel {
     property string language: "zh"
     property string outputMode: "universal"
     property string pasteKeys: "ctrl+v"
+    readonly property color panelForeground: Color.popups.text
+    readonly property color panelMuted: Util.alpha(Color.popups.text, 0.58)
+    readonly property color panelBorder: Color.popups.border
 
     // These are the three Sasayaki models.  Engine names and Voxtype's
     // internal model names stay implementation details of the config bridge.
@@ -144,7 +147,7 @@ Panel {
     function rowColor(active) {
         return active
             ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
-            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.07);
+            : Util.alpha(Color.popups.text, 0.07);
     }
 
     Process {
@@ -239,21 +242,21 @@ Panel {
 
                 Text {
                     text: "Voxtype Enhance"
-                    color: root.barForeground
+                    color: root.panelForeground
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.title
                     font.bold: true
                 }
                 Text {
                     text: "Configure dictation without leaving Omarchy. Changes restart Voxtype."
-                    color: Color.muted
+                    color: root.panelMuted
                     wrapMode: Text.WordWrap
                     width: parent.width
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                 }
 
-                Text { text: "Model"; color: Color.muted; font.pixelSize: Style.font.caption }
+                Text { text: "Model"; color: root.panelMuted; font.pixelSize: Style.font.caption }
                 Column {
                     width: parent.width; spacing: Style.space(6)
                     Repeater {
@@ -265,10 +268,10 @@ Panel {
                             property bool installed: root.modelInstalled(modelData.id)
                             property bool selected: root.modelId === modelData.id && installed
                             color: root.rowColor(selected)
-                            border.width: 1; border.color: selected ? Color.accent : Color.muted
+                            border.width: 1; border.color: selected ? Color.accent : root.panelBorder
                             Column {
                                 anchors.fill: parent; anchors.margins: Style.space(7); spacing: 1
-                                Text { text: modelData.title; color: root.barForeground; font.bold: true; font.pixelSize: Style.font.body }
+                                Text { text: modelData.title; color: root.panelForeground; font.bold: true; font.pixelSize: Style.font.body }
                                 Text {
                                     text: root.loading && root.pendingModelId === modelData.id
                                         ? (root.downloadProgress >= 0
@@ -277,7 +280,7 @@ Panel {
                                         : (installed
                                             ? modelData.detail + (selected ? " · active" : " · downloaded, not active")
                                             : "Not downloaded · click to download")
-                                    color: root.loading && root.pendingModelId === modelData.id ? Color.accent : Color.muted
+                                    color: root.loading && root.pendingModelId === modelData.id ? Color.accent : root.panelMuted
                                     font.pixelSize: Style.font.caption
                                 }
                             }
@@ -307,7 +310,7 @@ Panel {
 
                 Text {
                     visible: root.installedModels.length > 0
-                    text: "Language"; color: Color.muted; font.pixelSize: Style.font.caption
+                    text: "Language"; color: root.panelMuted; font.pixelSize: Style.font.caption
                 }
                 Row {
                     visible: root.installedModels.length > 0
@@ -319,8 +322,8 @@ Panel {
                             width: (content.width - Style.space(24)) / 5
                             height: Style.space(34)
                             color: root.rowColor(root.language === modelData.key)
-                            border.width: 1; border.color: root.language === modelData.key ? Color.accent : Color.muted
-                            Text { anchors.centerIn: parent; text: modelData.title; color: root.barForeground; font.pixelSize: Style.font.caption }
+                            border.width: 1; border.color: root.language === modelData.key ? Color.accent : root.panelBorder
+                            Text { anchors.centerIn: parent; text: modelData.title; color: root.panelForeground; font.pixelSize: Style.font.caption }
                             MouseArea { anchors.fill: parent; onClicked: root.setValue("language", modelData.key) }
                         }
                     }
@@ -328,7 +331,7 @@ Panel {
 
                 Text {
                     visible: root.installedModels.length > 0
-                    text: "Output"; color: Color.muted; font.pixelSize: Style.font.caption
+                    text: "Output"; color: root.panelMuted; font.pixelSize: Style.font.caption
                 }
                 Row {
                     visible: root.installedModels.length > 0
@@ -343,12 +346,12 @@ Panel {
                             width: (content.width - Style.space(6)) / 2
                             height: Style.space(52)
                             color: root.rowColor(root.outputMode === modelData.key)
-                            border.width: 1; border.color: root.outputMode === modelData.key ? Color.accent : Color.muted
+                            border.width: 1; border.color: root.outputMode === modelData.key ? Color.accent : root.panelBorder
                             Column { anchors.fill: parent; anchors.margins: Style.space(7); spacing: 1
-                                Text { text: modelData.title; color: root.barForeground; font.bold: true; font.pixelSize: Style.font.caption }
+                                Text { text: modelData.title; color: root.panelForeground; font.bold: true; font.pixelSize: Style.font.caption }
                                 Text {
                                     text: modelData.detail
-                                    color: Color.muted
+                                    color: root.panelMuted
                                     font.pixelSize: Style.font.caption
                                     width: parent.width
                                     elide: Text.ElideRight
@@ -361,7 +364,7 @@ Panel {
 
                 Text {
                     text: root.statusText.length > 0 ? root.statusText : "Universal paste uses Shift+Insert in terminals and Ctrl+V in graphical apps."
-                    color: root.statusIsError ? Color.urgent : (root.statusText.length > 0 ? Color.accent : Color.muted)
+                    color: root.statusIsError ? Color.urgent : (root.statusText.length > 0 ? Color.accent : root.panelMuted)
                     wrapMode: Text.WordWrap; width: parent.width
                     font.pixelSize: Style.font.caption
                 }
@@ -383,7 +386,7 @@ Panel {
 
                 Text {
                     text: "Clear plugin data"
-                    color: root.loading ? Color.muted : Color.accent
+                    color: root.loading ? root.panelMuted : Color.accent
                     font.pixelSize: Style.font.caption
                     opacity: root.loading ? 0.5 : 1
                     MouseArea {
