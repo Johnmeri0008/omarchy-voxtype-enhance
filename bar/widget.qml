@@ -10,7 +10,9 @@ BarWidget {
 
     property string runtimeDir: {
         const xdg = Quickshell.env("XDG_RUNTIME_DIR");
-        return xdg && xdg.length > 0 ? xdg + "/voxtype" : "/run/user/1000/voxtype";
+        // Do not assume uid 1000: target machines may create the first user
+        // with another uid (for example uid 1001 on the Omarchy Mac image).
+        return xdg && xdg.length > 0 ? xdg + "/voxtype" : "";
     }
     property string daemonState: "idle"
     property int spinnerFrame: 0

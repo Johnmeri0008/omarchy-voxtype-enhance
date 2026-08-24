@@ -57,6 +57,32 @@ class VoxtypeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unknown config key"):
                 voxtype_config.set_engine("whisper")
 
+    def test_variants_without_onnx_install_reject_before_download(self) -> None:
+        variants = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=(
+                "Variants\n"
+                "  Active: Whisper (native)\n"
+                "  Available:\n"
+                "    ONNX (native) not installed\n"
+            ),
+            stderr="",
+        )
+        with mock.patch.object(voxtype_config.subprocess, "run", return_value=variants):
+            with self.assertRaisesRegex(voxtype_config.EngineUnavailable, "No ONNX Voxtype variant"):
+                voxtype_config.check_engine_feature("sensevoice")
+
+    def test_installed_onnx_variant_passes_variant_probe(self) -> None:
+        variants = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="Available:\n  ONNX (native) installed\n",
+            stderr="",
+        )
+        with mock.patch.object(voxtype_config.subprocess, "run", return_value=variants):
+            voxtype_config.check_engine_feature("sensevoice")
+
     def test_restart_daemon_surfaces_systemd_error(self) -> None:
         rejected = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="restart failed"

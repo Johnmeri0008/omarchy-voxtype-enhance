@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -193,6 +194,26 @@ def check_engine_feature(engine: str) -> None:
         None,
     )
     if features_line is None:
+        # Voxtype 0.7.5 reports compiled variants rather than a `features:`
+        # line.  This is the format used by the current Omarchy packages.
+        # Treat an explicit list with no installed ONNX variant as a hard
+        # gate; otherwise the panel downloads hundreds of megabytes and only
+        # then reports the much less useful "could not apply" error.
+        variant_lines = [
+            line.strip().lower()
+            for line in result.stdout.splitlines()
+            if line.strip().lower().startswith("onnx (")
+        ]
+        if variant_lines and not any(
+            "not installed" not in line and "installed" in line
+            for line in variant_lines
+        ):
+            architecture = platform.machine()
+            raise EngineUnavailable(
+                "No ONNX Voxtype variant is installed for this machine "
+                f"({architecture}). The selected voice model requires an "
+                "ONNX-capable Voxtype build."
+            )
         return
 
     features = {
@@ -205,7 +226,7 @@ def check_engine_feature(engine: str) -> None:
         return
     raise EngineUnavailable(
         f"engine '{normalized}' is not compiled into this binary. "
-        "The selected model was not downloaded. Enable the ONNX Voxtype "
+        "The selected model was not downloaded. Enable an ONNX Voxtype "
         "variant and select the model again."
     )
 
