@@ -62,6 +62,11 @@ class EngineUnavailable(RuntimeError):
     """The selected engine needs an ONNX Voxtype binary."""
 
 
+def automatic_onnx_setup_supported() -> bool:
+    """Whether the distro's `voxtype setup` can switch the packaged binary."""
+    return platform.machine().lower() not in {"aarch64", "arm64"}
+
+
 def read_text() -> str:
     try:
         return CONFIG.read_text(encoding="utf-8")
@@ -233,6 +238,11 @@ def check_engine_feature(engine: str) -> None:
 
 def enable_onnx() -> None:
     """Switch Voxtype's system binary after an explicit user request."""
+    if not automatic_onnx_setup_supported():
+        raise RuntimeError(
+            "Automatic ONNX switching is not supported by the ARM package. "
+            "Install an ARM ONNX Voxtype variant first, then select the model again."
+        )
     if shutil.which("pkexec") is None:
         raise RuntimeError("pkexec is required to enable the ONNX Voxtype variant")
     result = subprocess.run(
@@ -495,7 +505,11 @@ def main() -> None:
             set_setting(args.setting, args.value)
         print(json.dumps(config_snapshot(), ensure_ascii=False))
     except EngineUnavailable as error:
-        print(json.dumps({"error": str(error), "requires_onnx": True}, ensure_ascii=False))
+        print(json.dumps({
+            "error": str(error),
+            "requires_onnx": True,
+            "onnx_setup_supported": automatic_onnx_setup_supported(),
+        }, ensure_ascii=False))
         raise SystemExit(1) from error
     except Exception as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False))

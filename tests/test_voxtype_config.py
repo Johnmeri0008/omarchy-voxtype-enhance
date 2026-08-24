@@ -83,6 +83,12 @@ class VoxtypeConfigTests(unittest.TestCase):
         with mock.patch.object(voxtype_config.subprocess, "run", return_value=variants):
             voxtype_config.check_engine_feature("sensevoice")
 
+    def test_arm_does_not_use_packaged_binary_switch(self) -> None:
+        with mock.patch.object(voxtype_config.platform, "machine", return_value="aarch64"):
+            self.assertFalse(voxtype_config.automatic_onnx_setup_supported())
+            with self.assertRaisesRegex(RuntimeError, "ARM package"):
+                voxtype_config.enable_onnx()
+
     def test_restart_daemon_surfaces_systemd_error(self) -> None:
         rejected = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="restart failed"

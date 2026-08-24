@@ -20,6 +20,7 @@ Panel {
     property string statusText: ""
     property bool statusIsError: false
     property bool requiresOnnx: false
+    property bool onnxSetupSupported: true
     property string blockedModelId: ""
     property string engine: "sensevoice"
     property string model: "small-int8"
@@ -58,6 +59,7 @@ Panel {
         root.statusText = setting === "model" ? "Downloading and verifying model…" : "Applying…";
         root.statusIsError = false;
         root.requiresOnnx = false;
+        root.onnxSetupSupported = true;
         writeProcess.running = true;
     }
     function enableOnnx() {
@@ -124,6 +126,7 @@ Panel {
             // gate. This used to be overwritten unconditionally below, so
             // the panel only showed the vague "Could not apply..." error.
             root.requiresOnnx = requiresOnnx;
+            root.onnxSetupSupported = data.onnx_setup_supported !== false;
             return true;
         } catch (error) {
             root.statusText = "Could not read Voxtype configuration";
@@ -342,7 +345,7 @@ Panel {
                 }
 
                 Text {
-                    visible: root.requiresOnnx && !root.loading
+                    visible: root.requiresOnnx && root.onnxSetupSupported && !root.loading
                     text: "Enable ONNX support (administrator approval)"
                     color: Color.accent
                     wrapMode: Text.WordWrap
