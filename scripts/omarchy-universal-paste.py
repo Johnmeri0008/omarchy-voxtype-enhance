@@ -89,6 +89,8 @@ def clipboard_digest() -> str | None:
     finally:
         if truncated:
             process.kill()
+        if stream is not None:
+            stream.close()
         process.wait()
     if total == 0 or (process.returncode != 0 and not truncated):
         return None

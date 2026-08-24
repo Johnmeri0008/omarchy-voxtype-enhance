@@ -6,6 +6,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -89,14 +90,20 @@ class UniversalPasteTests(unittest.TestCase):
         script = bindir / "wl-paste"
         script.write_text(f"#!/bin/sh\nprintf '%s' '{big}'\n")
         script.chmod(0o755)
-        with mock.patch.dict(os.environ, {"PATH": f"{bindir}:{os.environ['PATH']}"}):
-            with mock.patch.object(
-                universal_paste, "MAX_CLIPBOARD_BYTES", 1024 * 1024
-            ):
-                digest = universal_paste.clipboard_digest()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with mock.patch.dict(os.environ, {"PATH": f"{bindir}:{os.environ['PATH']}"}):
+                with mock.patch.object(
+                    universal_paste, "MAX_CLIPBOARD_BYTES", 1024 * 1024
+                ):
+                    digest = universal_paste.clipboard_digest()
         self.assertIsNotNone(digest)
         assert digest is not None
         self.assertTrue(digest.startswith("truncated:"), digest[:32])
+        self.assertFalse(
+            any(item.category is ResourceWarning for item in caught),
+            caught,
+        )
         # The producer must have been killed rather than streamed to completion.
         self.assertLess(len(big), 4 * 1024 * 1024)
 
