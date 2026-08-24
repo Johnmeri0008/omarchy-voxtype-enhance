@@ -61,6 +61,31 @@ ARM_ONNX_SHA256 = "360cc6e2ccbce7ea0d7c7cf92f23ebada7a6678f0e92ddaecbea44966d757
 ARM_ONNX_MAX_SIZE = 50_000_000
 ARM_ONNX_INSTALL = Path("/usr/local/bin/voxtype")
 ARM_ONNX_SERVICE_OVERRIDE = Path.home() / ".config/systemd/user/voxtype.service.d/10-arm-onnx.conf"
+ARM_PRIVILEGED_INSTALL_HELPER = r'''
+import os
+import tempfile
+
+target = "/usr/local/bin/voxtype"
+maximum = 50_000_000
+payload = os.read(0, maximum + 1)
+if len(payload) > maximum:
+    raise SystemExit("ARM ONNX payload exceeds its declared size")
+
+fd, temporary = tempfile.mkstemp(prefix=".voxtype-arm-onnx.", dir=os.path.dirname(target))
+try:
+    os.fchmod(fd, 0o755)
+    with os.fdopen(fd, "wb") as output:
+        output.write(payload)
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(temporary, target)
+except BaseException:
+    try:
+        os.unlink(temporary)
+    except FileNotFoundError:
+        pass
+    raise
+'''
 
 
 class EngineUnavailable(RuntimeError):
@@ -312,11 +337,17 @@ def install_arm_onnx() -> None:
                     output.write(chunk)
             if sha256_file(temp) != ARM_ONNX_SHA256:
                 raise RuntimeError("ARM ONNX binary checksum mismatch")
+            # Keep the verified bytes immutable across the privilege boundary.
+            # Passing the temporary pathname to pkexec would allow a same-user
+            # process to replace it after hashing but before root opens it.
+            payload = temp.read_bytes()
+            if len(payload) > ARM_ONNX_MAX_SIZE or hashlib.sha256(payload).hexdigest() != ARM_ONNX_SHA256:
+                raise RuntimeError("ARM ONNX binary changed during verification")
             if shutil.which("pkexec") is None:
                 raise RuntimeError("pkexec is required to install the ARM ONNX Voxtype binary")
             result = subprocess.run(
-                ["pkexec", "install", "-m", "0755", str(temp), str(target)],
-                check=False, capture_output=True, text=True,
+                ["pkexec", "/usr/bin/python3", "-c", ARM_PRIVILEGED_INSTALL_HELPER],
+                input=payload, check=False, capture_output=True,
             )
             if result.returncode != 0:
                 detail = result.stderr.strip() or result.stdout.strip()

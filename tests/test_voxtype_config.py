@@ -99,6 +99,31 @@ class VoxtypeConfigTests(unittest.TestCase):
         ):
             self.assertEqual(voxtype_config.voxtype_command(), str(arm_binary))
 
+    def test_arm_install_passes_verified_bytes_to_fixed_privileged_helper(self) -> None:
+        payload = b"verified arm binary"
+        target = self.models / "installed" / "voxtype"
+        override = self.models / "systemd" / "10-arm-onnx.conf"
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.side_effect = [payload, b""]
+        successful = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+        with (
+            mock.patch.object(voxtype_config.platform, "machine", return_value="aarch64"),
+            mock.patch.object(voxtype_config, "ARM_ONNX_INSTALL", target),
+            mock.patch.object(voxtype_config, "ARM_ONNX_SERVICE_OVERRIDE", override),
+            mock.patch.object(voxtype_config, "ARM_ONNX_SHA256", voxtype_config.hashlib.sha256(payload).hexdigest()),
+            mock.patch.object(voxtype_config.urllib.request, "urlopen", return_value=response),
+            mock.patch.object(voxtype_config.shutil, "which", return_value="/usr/bin/pkexec"),
+            mock.patch.object(voxtype_config.subprocess, "run", return_value=successful) as run,
+            mock.patch.object(voxtype_config, "restart_daemon"),
+        ):
+            voxtype_config.install_arm_onnx()
+
+        install_call = run.call_args_list[0]
+        self.assertEqual(install_call.args[0][:3], ["pkexec", "/usr/bin/python3", "-c"])
+        self.assertEqual(install_call.kwargs["input"], payload)
+        self.assertNotIn(str(target), install_call.args[0])
+
     def test_non_arm_keeps_path_binary_for_cli_mutations(self) -> None:
         with (
             mock.patch.object(voxtype_config.platform, "machine", return_value="x86_64"),

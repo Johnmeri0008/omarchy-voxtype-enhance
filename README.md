@@ -112,8 +112,8 @@ The `Clear plugin data` link removes only the three model directories managed by
 
 The plugin does not edit Hyprland bindings, change the recording hotkey, or
 install a system service. When Voxtype is already installed, model selection
-does not require privileges. Exactly two operations elevate through `pkexec`;
-both are visible, user-initiated, and run fixed commands:
+does not require privileges. Exactly three operations elevate through `pkexec`;
+all are visible, user-initiated, and run fixed commands:
 
 - `pkexec voxtype setup onnx --enable` — switch to the ONNX-capable binary;
 - the pinned official ARM ONNX binary — offered only after explicit approval

@@ -66,7 +66,9 @@ ARM 则只有用户明确确认后才下载并校验固定版本的官方 `voxty
 - [x] 外部命令全部列表参数，无 shell 拼接；engine 切换委托 voxtype CLI 并回读验证
 - [x] ARM ONNX 下载使用固定官方 URL、大小上限和 SHA-256 校验；授权前不写系统路径
 - [x] ARM 安装不覆盖 `/usr/bin/voxtype`，仅使用 `/usr/local/bin` 与用户级 service override
-- [x] tests/ 23 个用例可跑，覆盖 ARM binary selection、下载边界、配置回读和 universal paste
+- [x] ARM 安装提权边界不重新打开用户可写临时路径；校验后的有界字节通过 stdin
+      传给固定内联 helper，再由 root 在 `/usr/local/bin` 原子替换目标文件
+- [x] tests/ 24 个用例可跑，覆盖 ARM binary selection、提权字节传输、下载边界、配置回读和 universal paste
 - [ ] **卸载卫生**：universal paste 模式把 `pre/post_output_command`（指向本插件脚本的
       绝对路径）写进用户 `~/.config/voxtype/config.toml`，插件移除后钩子残留、指向已删除路径。
       审核清单的 explicit consent 条款会盯这个；建议提供 clear 动作并在 README 卸载节写明。
