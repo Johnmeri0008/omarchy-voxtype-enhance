@@ -22,6 +22,7 @@ Panel {
     property bool requiresOnnx: false
     property bool onnxSetupSupported: true
     property string blockedModelId: ""
+    property string writeStderrText: ""
     property string engine: "sensevoice"
     property string model: "small-int8"
     property string modelId: ""
@@ -60,6 +61,7 @@ Panel {
         root.statusIsError = false;
         root.requiresOnnx = false;
         root.onnxSetupSupported = true;
+        root.writeStderrText = "";
         writeProcess.running = true;
     }
     function enableOnnx() {
@@ -72,6 +74,7 @@ Panel {
         root.statusText = "Administrator approval is required to enable ONNX…";
         root.statusIsError = false;
         root.requiresOnnx = false;
+        root.writeStderrText = "";
         writeProcess.running = true;
     }
     function updateDownloadProgress(raw) {
@@ -102,15 +105,19 @@ Panel {
         root.statusText = "Clearing models and restoring defaults…";
         root.statusIsError = false;
         root.requiresOnnx = false;
+        root.writeStderrText = "";
         writeProcess.running = true;
     }
     function applySnapshot(raw) {
         try {
             const data = JSON.parse(raw);
+            // Keep this flag authoritative for the current response. The
+            // write process may exit non-zero with a structured JSON error;
+            // do not let the generic fallback below hide that useful detail.
+            root.statusIsError = data.error ? true : false;
             const requiresOnnx = data.requires_onnx === true;
             if (data.error) {
                 root.statusText = data.error;
-                root.statusIsError = true;
                 if (requiresOnnx && root.pendingAction === "model") {
                     root.blockedModelId = root.pendingModelId;
                 }
@@ -162,10 +169,12 @@ Panel {
         command: ["python3", root.configTool, "set", "mode", "paste"]
         running: false
         stdout: StdioCollector { id: writeStdout; waitForEnd: true }
-        stderr: StdioCollector {
-            id: writeStderr
-            waitForEnd: true
-            onTextChanged: root.updateDownloadProgress(text)
+        stderr: SplitParser {
+            onRead: function(line) {
+                const text = String(line || "");
+                root.writeStderrText += text + "\n";
+                root.updateDownloadProgress(text);
+            }
         }
         onExited: function(exitCode) {
             root.loading = false;
@@ -173,6 +182,7 @@ Panel {
             const output = String(writeStdout.text || "").trim();
             const snapshotOk = output.length > 0 && root.applySnapshot(output);
             const succeeded = exitCode === 0 && snapshotOk;
+            const requiresOnnxAction = snapshotOk && root.statusIsError && root.requiresOnnx;
             if (succeeded && root.pendingAction === "onnx" && root.blockedModelId !== "") {
                 // Resume the model selection that triggered the ONNX prompt so
                 // the user does not have to pick the model again by hand.
@@ -188,13 +198,17 @@ Panel {
                     ? "Defaults restored; select a model to download."
                     : "Voxtype restarted with the new setting";
                 root.statusIsError = false;
-            } else if (snapshotOk || output.length === 0) {
-                root.statusText = root.processError(writeStderr.text, "Could not apply the Voxtype setting");
+            } else if (!(snapshotOk && root.statusIsError)) {
+                root.statusText = root.processError(root.writeStderrText, "Could not apply the Voxtype setting");
                 root.statusIsError = true;
             }
             // Download progress is transient; restore authoritative model
             // state on every failed write.
-            if (!succeeded) root.refresh();
+            // A structured ONNX error is already the authoritative state for
+            // this failed model action. Refreshing here would read the old
+            // config and clear `requiresOnnx` before the action link can be
+            // displayed.
+            if (!succeeded && !requiresOnnxAction) root.refresh();
             root.pendingAction = "";
             root.pendingModelId = "";
             if (succeeded) clearStatus.restart();
@@ -291,8 +305,12 @@ Panel {
                     }
                 }
 
-                Text { text: "Language"; color: Color.muted; font.pixelSize: Style.font.caption }
+                Text {
+                    visible: root.installedModels.length > 0
+                    text: "Language"; color: Color.muted; font.pixelSize: Style.font.caption
+                }
                 Row {
+                    visible: root.installedModels.length > 0
                     width: parent.width; spacing: Style.space(6)
                     Repeater {
                         model: root.languages
@@ -308,8 +326,12 @@ Panel {
                     }
                 }
 
-                Text { text: "Output"; color: Color.muted; font.pixelSize: Style.font.caption }
+                Text {
+                    visible: root.installedModels.length > 0
+                    text: "Output"; color: Color.muted; font.pixelSize: Style.font.caption
+                }
                 Row {
+                    visible: root.installedModels.length > 0
                     width: parent.width; spacing: Style.space(6)
                     Repeater {
                         model: [
@@ -346,8 +368,9 @@ Panel {
 
                 Text {
                     visible: root.requiresOnnx && root.onnxSetupSupported && !root.loading
-                    text: "Enable ONNX support (administrator approval)"
+                    text: "Enable ONNX support (administrator approval required)"
                     color: Color.accent
+                    font.underline: true
                     wrapMode: Text.WordWrap
                     width: parent.width
                     font.pixelSize: Style.font.caption

@@ -32,6 +32,24 @@
 | 2（主动加固） | — | `7e41fe8`：下载前检测 ONNX 引擎可用性；ONNX 启用走用户显式触发的固定命令 `pkexec voxtype setup onnx --enable` |
 | 3 | universal paste 三连：① `stdout=PIPE` 全量吞剪贴板才哈希（无界内存）；② 状态目录回退可预测的 `/tmp/voxtype-enhance`；③ marker 裸 follow 不验属主/类型 | 本轮修复：流式分块哈希 + 8 MiB 封顶；去掉 `/tmp` 回退，强制 `XDG_RUNTIME_DIR` 且目录验属主/0700；marker 读写 `O_NOFOLLOW`+fstat 验 regular/属主、0600。回归测试 `tests/test_universal_paste.py` |
 
+### 最新提审更新（2026-08-24）
+
+本轮提交包含以下面向审核和用户体验的修复：
+
+- ARM 安装完成后，模型探测和 engine 切换统一使用已校验的
+  `/usr/local/bin/voxtype`，避免 CLI 继续调用包管理器提供的 Whisper 二进制；
+- ONNX 缺失时保留结构化错误，并在面板显示可点击的
+  `Enable ONNX support (administrator approval required)` 操作；用户确认后
+  通过既有固定提权流程安装，成功后自动恢复被阻塞的模型下载；
+- 下载进度改为从 stderr 逐行实时解析，不再等进程结束后才更新；
+- 未下载任何模型时隐藏 Language 和 Output 控件，避免用户在 Voxtype 没有可用
+  转写模型时写入设置；
+- 增加 ARM/非 ARM 可执行文件选择回归测试，并修正测试对宿主机架构的依赖。
+
+验证结果：`python3 -m unittest discover -s tests` 共 23 个测试通过，
+`git diff --check` 通过。请审核方按本次最新 HEAD 重新扫描并复审；本轮没有新增
+提权入口，仍只有用户明确点击后触发的固定 `pkexec` 命令。
+
 HEAD 即本轮修复提交（`6b2cffd` 之后）。本轮增加 ARM/aarch64 平台分支：插件先检测实际可用的
 Voxtype 变体，缺少 ONNX 时不下载模型；x86_64 仍使用固定的 `pkexec voxtype setup onnx --enable`，
 ARM 则只有用户明确确认后才下载并校验固定版本的官方 `voxtype-0.7.5-linux-aarch64-onnx`，
@@ -48,7 +66,7 @@ ARM 则只有用户明确确认后才下载并校验固定版本的官方 `voxty
 - [x] 外部命令全部列表参数，无 shell 拼接；engine 切换委托 voxtype CLI 并回读验证
 - [x] ARM ONNX 下载使用固定官方 URL、大小上限和 SHA-256 校验；授权前不写系统路径
 - [x] ARM 安装不覆盖 `/usr/bin/voxtype`，仅使用 `/usr/local/bin` 与用户级 service override
-- [x] tests/ 7 个用例可跑（修复评论里引用过，是加分项，保持绿色）
+- [x] tests/ 23 个用例可跑，覆盖 ARM binary selection、下载边界、配置回读和 universal paste
 - [ ] **卸载卫生**：universal paste 模式把 `pre/post_output_command`（指向本插件脚本的
       绝对路径）写进用户 `~/.config/voxtype/config.toml`，插件移除后钩子残留、指向已删除路径。
       审核清单的 explicit consent 条款会盯这个；建议提供 clear 动作并在 README 卸载节写明。

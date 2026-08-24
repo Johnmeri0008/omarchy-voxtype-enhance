@@ -77,6 +77,24 @@ def onnx_install_supported() -> bool:
     return automatic_onnx_setup_supported() or platform.machine().lower() in {"aarch64", "arm64"}
 
 
+def voxtype_command() -> str:
+    """Return the binary whose engine matches the active ARM installation.
+
+    The ARM installer deliberately leaves the package-owned `/usr/bin/voxtype`
+    untouched and redirects only the user service.  The service override does
+    not affect CLI calls from the panel, so use the verified ARM binary for
+    feature probes and config mutations as well.  Other platforms retain the
+    normal PATH lookup.
+    """
+    if (
+        platform.machine().lower() in {"aarch64", "arm64"}
+        and ARM_ONNX_INSTALL.is_file()
+        and sha256_file(ARM_ONNX_INSTALL) == ARM_ONNX_SHA256
+    ):
+        return str(ARM_ONNX_INSTALL)
+    return shutil.which("voxtype") or "voxtype"
+
+
 def read_text() -> str:
     try:
         return CONFIG.read_text(encoding="utf-8")
@@ -172,7 +190,7 @@ def restart_daemon() -> None:
 def set_engine(engine: str) -> None:
     """Switch engine through Voxtype so binary feature gates stay authoritative."""
     result = subprocess.run(
-        ["voxtype", "config", "set", "engine", engine.lower()],
+        [voxtype_command(), "config", "set", "engine", engine.lower()],
         check=False,
         capture_output=True,
         text=True,
@@ -195,7 +213,7 @@ def check_engine_feature(engine: str) -> None:
     mutator remains the final check.
     """
     result = subprocess.run(
-        ["voxtype", "info", "variants"],
+        [voxtype_command(), "info", "variants"],
         check=False,
         capture_output=True,
         text=True,

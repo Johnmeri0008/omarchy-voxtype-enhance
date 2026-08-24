@@ -88,6 +88,24 @@ class VoxtypeConfigTests(unittest.TestCase):
             self.assertFalse(voxtype_config.automatic_onnx_setup_supported())
             self.assertTrue(voxtype_config.onnx_install_supported())
 
+    def test_arm_uses_verified_onnx_binary_for_cli_mutations(self) -> None:
+        self.models.mkdir()
+        arm_binary = self.models / "voxtype"
+        arm_binary.write_bytes(b"verified arm binary")
+        with (
+            mock.patch.object(voxtype_config.platform, "machine", return_value="aarch64"),
+            mock.patch.object(voxtype_config, "ARM_ONNX_INSTALL", arm_binary),
+            mock.patch.object(voxtype_config, "ARM_ONNX_SHA256", voxtype_config.sha256_file(arm_binary)),
+        ):
+            self.assertEqual(voxtype_config.voxtype_command(), str(arm_binary))
+
+    def test_non_arm_keeps_path_binary_for_cli_mutations(self) -> None:
+        with (
+            mock.patch.object(voxtype_config.platform, "machine", return_value="x86_64"),
+            mock.patch.object(voxtype_config.shutil, "which", return_value="/usr/bin/voxtype"),
+        ):
+            self.assertEqual(voxtype_config.voxtype_command(), "/usr/bin/voxtype")
+
     def test_restart_daemon_surfaces_systemd_error(self) -> None:
         rejected = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="restart failed"
@@ -98,6 +116,7 @@ class VoxtypeConfigTests(unittest.TestCase):
 
     def test_model_switch_rejects_missing_engine_readback(self) -> None:
         with (
+            mock.patch.object(voxtype_config, "check_engine_feature"),
             mock.patch.object(voxtype_config, "ensure_model"),
             mock.patch.object(voxtype_config, "set_engine"),
             mock.patch.object(voxtype_config, "restart_daemon") as restart,
@@ -112,6 +131,7 @@ class VoxtypeConfigTests(unittest.TestCase):
             self.config.write_text(text, encoding="utf-8")
 
         with (
+            mock.patch.object(voxtype_config, "check_engine_feature"),
             mock.patch.object(voxtype_config, "ensure_model"),
             mock.patch.object(voxtype_config, "set_engine", side_effect=persist_engine),
             mock.patch.object(voxtype_config, "model_files_present", return_value=True),

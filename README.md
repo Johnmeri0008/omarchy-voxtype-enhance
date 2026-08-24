@@ -20,7 +20,8 @@ Voxtype Enhance is an Omarchy experience-enhancement plugin for Voxtype voice in
 - Chinese, English, Japanese, Korean, and automatic language choices.
 - Omarchy universal paste: `Shift+Insert` in terminal/TUI windows and `Ctrl+V` in graphical applications.
 - Voxtype's native Type output as an alternative.
-- Download progress shown directly inside the selected model card.
+- Real-time download progress shown directly inside the selected model card.
+- Language and output controls stay hidden until at least one model is downloaded.
 - Clear plugin data action for resetting model downloads and plugin-managed settings.
 - No replacement recorder, speech recognizer, clipboard daemon, or extra Quickshell service.
 
@@ -50,12 +51,15 @@ Only the model confirmed as active in Voxtype is highlighted. A downloaded model
 that is not active is labelled `downloaded, not active`; a failed engine switch
 shows the Voxtype/systemd error and restores the effective selection. Downloads
 use the pinned Sasayaki Hugging Face sources and SHA-256 manifests. Already
-verified files are skipped.
+verified files are skipped. Progress is streamed line-by-line while files are
+being downloaded, so the model card reflects the current transfer instead of
+remaining at the initial 0% state.
 
 SenseVoice and Paraformer require an ONNX-capable Voxtype binary. The default
 Voxtype installation uses the standard Whisper binary. When an ONNX model is
 selected without ONNX support, the plugin stops before downloading and explains
-what is missing. On x86_64, the user can explicitly approve the fixed command
+what is missing and provides an `Enable ONNX support (administrator approval required)`
+action in the panel. On x86_64, the user can explicitly approve the fixed command
 `pkexec voxtype setup onnx --enable`. On aarch64/ARM, the plugin instead offers
 to download and SHA-256 verify Voxtype's pinned official ARM ONNX release, then
 installs it under `/usr/local/bin` and uses a per-user systemd override; it does
@@ -112,6 +116,10 @@ both are visible, user-initiated, and run fixed commands:
 - `pkexec pacman -S --noconfirm --needed voxtype-bin` — offered only when the
   Voxtype binary is missing entirely.
 
+When no model is downloaded, the panel hides the Language and Output controls
+until the first model has been verified successfully. This prevents settings
+from being applied while Voxtype has no usable transcription model.
+
 ## Dependencies
 
 The following are provided by Omarchy, Voxtype, or the normal desktop setup:
@@ -159,7 +167,8 @@ Voxtype Enhance 是一个 Omarchy 体验增强插件，用于增强 Voxtype 语�
 - 中文、英文、日文、韩文和自动识别；
 - 终端使用 `Shift+Insert`、普通应用使用 `Ctrl+V` 的万能粘贴；
 - Voxtype 原生 Type 输入模式；
-- 模型下载进度显示；
+- 实时模型下载进度显示；
+- 未下载模型时隐藏语言和输出设置；
 - 清除模型并恢复插件默认设置。
 
 安装 Voxtype 后执行：
@@ -169,6 +178,8 @@ omarchy plugin add https://github.com/iamcheyan/omarchy-voxtype-enhance.git --en
 ```
 
 点击顶栏麦克风图标打开设置面板。用户不需要了解模型对应的 engine，选择模型后插件会自动处理。插件不会修改录音快捷键，仍然使用 Voxtype 原来的快捷键。
+
+如果缺少 ONNX 支持，面板会显示 `Enable ONNX support (administrator approval required)` 操作。点击后会请求管理员权限，ARM 平台会下载并校验对应的 ONNX 版本，完成后自动继续模型下载。模型下载过程中会实时显示进度；在模型下载完成前，语言和输出设置会暂时隐藏。
 
 万能粘贴会根据当前窗口判断输出方式：Omarchy 标记为终端的窗口使用 `Shift+Insert`，其它图形应用使用 `Ctrl+V`，以避免 CodeX 等终端程序把 `Ctrl+V` 解释成图片粘贴操作。
 
@@ -188,7 +199,8 @@ Voxtype Enhance は、Voxtype の音声入力体験を Omarchy 向けに強化�
 - 中国語、英語、日本語、韓国語、自動認識；
 - ターミナルでは `Shift+Insert`、GUI アプリでは `Ctrl+V` を使う Omarchy universal paste；
 - Voxtype 標準の Type 入力；
-- モデルのダウンロード進捗表示；
+- リアルタイムのモデルダウンロード進捗表示；
+- モデル未ダウンロード時は言語と出力設定を非表示；
 - ダウンロード済みモデルと設定を初期化するリセット機能。
 
 Voxtype を先に Omarchy からインストールし、次のコマンドでプラグインを追加します。
@@ -200,5 +212,7 @@ omarchy plugin add https://github.com/iamcheyan/omarchy-voxtype-enhance.git --en
 トップバーのマイクアイコンをクリックして設定パネルを開きます。モデルの engine を意識する必要はありません。モデルを選ぶと、必要なファイルのダウンロードと設定変更が自動的に行われます。録音ショートカットは変更せず、Voxtype の既存設定を使用します。
 
 Universal paste はフォーカス中のウィンドウを判定し、Omarchy のターミナルでは `Shift+Insert`、通常の GUI アプリでは `Ctrl+V` を送信します。これにより、CodeX などの TUI が `Ctrl+V` を画像貼り付けとして扱う問題を避けられます。
+
+ONNX が必要な場合は、パネルの `Enable ONNX support (administrator approval required)` をクリックしてください。管理者権限を確認した後、ARM では対応する ONNX 版 Voxtype をダウンロード・検証し、モデルのダウンロードを自動的に再開します。モデルが未ダウンロードの間は、言語と出力設定を表示しません。
 
 パネル下部の `Clear plugin data` をクリックすると、プラグインが管理する 3 つのモデルを削除し、SenseVoice int8、中国語、Universal paste の初期設定に戻します。Whisper モデル、録音データ、ショートカット、その他の Voxtype 設定は削除しません。
